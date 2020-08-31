@@ -1,120 +1,28 @@
-//Подключение модулей
+const gulp = require('gulp')
 
-const gulp = require('gulp');
-const concat = require('gulp-concat');
-const autoprefixer = require('gulp-autoprefixer');
-const cleanCSS = require('gulp-clean-css');
-const uglify = require('gulp-uglify');
-const del = require('del');
-const browserSync = require('browser-sync').create();
-const sass = require('gulp-sass');
-const sourcemaps = require('gulp-sourcemaps');
-const pug = require('gulp-pug');
+const serve = require('./gulp/tasks/serve')
+const pug2html = require('./gulp/tasks/pug2html')
+const styles = require('./gulp/tasks/styles')
+const script = require('./gulp/tasks/script')
+const fonts = require('./gulp/tasks/fonts')
+const imageMinify = require('./gulp/tasks/imageMinify')
+const clean = require('./gulp/tasks/clean')
+const copyDependencies = require('./gulp/tasks/copyDependencies')
+const lighthouse = require('./gulp/tasks/lighthouse')
+const svgSprite = require('./gulp/tasks/svgSprite')
 
-//Таск на стили SASS
-function styles() {
-	//Подключить все файлы SASS - './src/sass/**/*.sass'
-	return gulp.src('./src/sass/*.sass')
-		.pipe(sourcemaps.init())
-		.pipe(sass({
-			outputStyle: 'compressed'
-		}).on('error', sass.logError))
-		//Конкатенация файлов
-		.pipe(concat('style.css'))
-		//Добавление префиксов
-		.pipe(autoprefixer({
-			browsers: ['last 2 versions'],
-			cascade: false
-		}))
-		//Минификация CSS
-		.pipe(cleanCSS({
-			level: 2
-		}))
-		.pipe(sourcemaps.write('./'))
-		.pipe(gulp.dest('./build/css'))
-		.pipe(browserSync.stream());
+function setMode(isProduction = false) {
+  return cb => {
+    process.env.NODE_ENV = isProduction ? 'production' : 'development'
+    cb()
+  }
 }
 
-//Таск на скрипты JS
-function scripts() {
-	return gulp.src('./src/js/**/*.js')
-		.pipe(concat('script.js'))
-		// Минификация JS
-		.pipe(uglify({
-			toplevel: true
-		}))
-		.pipe(gulp.dest('./build/js'))
-		.pipe(browserSync.stream());
-}
+const dev = gulp.parallel(pug2html, styles, script, fonts, imageMinify, svgSprite)
 
-//Таск переноса PUG файлов в папку build
-function pugCompiller() {
-	return gulp.src([
-			'./src/**/*.pug',
-			'./src/**/*.html'
-		])
-		.pipe(pug({
-			pretty: true
-		}))
-		.pipe(gulp.dest('./build'))
-		.pipe(browserSync.stream());
-}
+const build = gulp.series(clean, copyDependencies, dev)
 
-//Таск переноса изображений в папку build/img
-function images() {
-	return gulp.src([
-			'./src/img/**/*.jpg',
-			'./src/img/**/*.png',
-			'./src/img/**/*.webp',
-			'./src/img/**/*.svg',
-			'./src/img/**/*.gif'
-		])
-		.pipe(gulp.dest('./build/img'))
-		.pipe(browserSync.stream());
-}
+module.exports.start = gulp.series(setMode(), build, serve)
+module.exports.build = gulp.series(setMode(true), build)
 
-//Таск очистки папки build
-function clean() {
-	return del(['build/*'])
-}
-
-//Просмотр обновления файлов
-function watch() {
-	browserSync.init({
-		server: {
-			baseDir: "./build/"
-		}
-	});
-	//Следить за SASS файлами
-	gulp.watch([
-		'./src/sass/**/*.sass',
-		'./src/sass/**/*.css',
-		'./src/sass/**/*.scss'
-	], styles);
-	//Следить за JS файлами
-	gulp.watch('./src/js/**/*.js', scripts);
-	//Следить за PUG файлами
-	gulp.watch([
-		'./src/**/*.pug',
-		'./src/**/*.html'
-	], pugCompiller);
-	//Следить за изображениями
-	gulp.watch([
-		'./src/img/**/*.jpg',
-		'./src/img/**/*.png',
-		'./src/img/**/*.svg',
-		'./src/img/**/*.webp',
-		'./src/img/**/*.gif'
-	], images);
-}
-
-//Таск, вызывающий функцию styles
-gulp.task('styles', styles);
-//Таск, вызывающий функцию scripts
-gulp.task('scripts', scripts);
-gulp.task('pug', pugCompiller);
-gulp.task('del', clean);
-gulp.task('watch', watch);
-gulp.task('images', images);
-gulp.task('build', gulp.series(clean, gulp.parallel(styles, scripts, pugCompiller, images)));
-gulp.task('start', gulp.series('build', 'watch'))
+module.exports.lighthouse = gulp.series(lighthouse)
